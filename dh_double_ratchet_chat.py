@@ -899,93 +899,177 @@ if TK_AVAILABLE:
     class SecureChatUI:
         def __init__(self, root: tk.Tk) -> None:
             self.root = root
-            self.root.title("Copy/Paste DH + Double Ratchet Chat (Hardened)")
-            self.root.geometry("1000x820")
+            self.root.title("Burnt Toast — Private Copy/Paste Chat")
+            self.root.geometry("960x790")
 
             self.state = RatchetState()
 
             self.name_var = tk.StringVar(value=os.getenv("USER", "Me"))
             self.psk_var = tk.StringVar(value="")
+            self.auto_copy_var = tk.BooleanVar(value=True)
 
             self.status_var = tk.StringVar(value="Not linked")
-            self.mode_var = tk.StringVar(value="-")
+            self.banner_var = tk.StringVar(value="Step 1: Choose Start Link (Laptop A) or Reply to Link (Laptop B).")
             self.session_fp_var = tk.StringVar(value="-")
             self.id_fp_var = tk.StringVar(value="-")
-
             self.msg_var = tk.StringVar(value="")
+
+            self._banner_default_bg = "#1f2937"
+            self._banner_job: Optional[str] = None
 
             self._build_ui()
             self._refresh_status()
 
+        # ---------- UI layout ----------
+
         def _build_ui(self) -> None:
-            outer = ttk.Frame(self.root, padding=10)
+            outer = ttk.Frame(self.root, padding=12)
             outer.pack(fill="both", expand=True)
 
-            top1 = ttk.Frame(outer)
-            top1.pack(fill="x", pady=(0, 8))
+            hero = tk.Frame(outer, bg="#111827", padx=12, pady=10)
+            hero.pack(fill="x", pady=(0, 10))
+            tk.Label(
+                hero,
+                text="Burnt Toast",
+                bg="#111827",
+                fg="#f9fafb",
+                font=("Helvetica", 16, "bold"),
+            ).pack(anchor="w")
+            tk.Label(
+                hero,
+                text="Private chat via manual copy/paste packets — simple mode",
+                bg="#111827",
+                fg="#cbd5e1",
+                font=("Helvetica", 10),
+            ).pack(anchor="w", pady=(2, 0))
 
-            ttk.Label(top1, text="Your name:").pack(side="left")
-            ttk.Entry(top1, textvariable=self.name_var, width=18).pack(side="left", padx=(6, 10))
+            settings = ttk.Frame(outer)
+            settings.pack(fill="x", pady=(0, 8))
 
-            ttk.Label(top1, text="PSK (optional):").pack(side="left")
-            ttk.Entry(top1, textvariable=self.psk_var, width=38).pack(side="left", padx=(6, 6))
-            ttk.Button(top1, text="Gen PSK", command=self.generate_psk).pack(side="left", padx=4)
+            ttk.Label(settings, text="Your name:").pack(side="left")
+            ttk.Entry(settings, textvariable=self.name_var, width=16).pack(side="left", padx=(6, 10))
 
-            top2 = ttk.Frame(outer)
-            top2.pack(fill="x", pady=(0, 8))
-            ttk.Button(top2, text="Create Link Request (Initiator)", command=self.create_link_request).pack(side="left", padx=4)
-            ttk.Button(top2, text="Accept Link Request + Respond", command=self.accept_link_request).pack(side="left", padx=4)
-            ttk.Button(top2, text="Complete Link from Response", command=self.complete_link).pack(side="left", padx=4)
+            ttk.Label(settings, text="PSK (optional):").pack(side="left")
+            ttk.Entry(settings, textvariable=self.psk_var, width=34).pack(side="left", padx=(6, 6))
+            ttk.Button(settings, text="Generate PSK", command=self.generate_psk).pack(side="left", padx=4)
+            ttk.Checkbutton(settings, text="Auto-copy packets", variable=self.auto_copy_var).pack(side="left", padx=(10, 0))
 
-            status_frame = ttk.Frame(outer)
-            status_frame.pack(fill="x", pady=(0, 8))
-            ttk.Label(status_frame, textvariable=self.status_var).pack(side="left")
-            ttk.Label(status_frame, text="   Mode:").pack(side="left")
-            ttk.Label(status_frame, textvariable=self.mode_var).pack(side="left")
-            ttk.Label(status_frame, text="   Session FP:").pack(side="left")
-            ttk.Label(status_frame, textvariable=self.session_fp_var).pack(side="left")
-            ttk.Label(status_frame, text="   Identity FP:").pack(side="left")
-            ttk.Label(status_frame, textvariable=self.id_fp_var).pack(side="left")
+            actions = ttk.Frame(outer)
+            actions.pack(fill="x", pady=(0, 8))
 
-            ttk.Label(outer, text="Incoming packet (paste from other laptop):").pack(anchor="w")
-            self.incoming = ScrolledText(outer, height=8, wrap="word")
+            self.btn_start = ttk.Button(actions, text="1) Start Link (Laptop A)", command=self.create_link_request)
+            self.btn_reply = ttk.Button(actions, text="2) Reply to Link (Laptop B)", command=self.accept_link_request)
+            self.btn_finish = ttk.Button(actions, text="3) Finish Link (Laptop A)", command=self.complete_link)
+
+            self.btn_start.pack(side="left", padx=4)
+            self.btn_reply.pack(side="left", padx=4)
+            self.btn_finish.pack(side="left", padx=4)
+
+            self.banner = tk.Label(
+                outer,
+                textvariable=self.banner_var,
+                bg=self._banner_default_bg,
+                fg="#f9fafb",
+                anchor="w",
+                padx=10,
+                pady=8,
+                font=("Helvetica", 10, "bold"),
+            )
+            self.banner.pack(fill="x", pady=(0, 8))
+
+            status_row = ttk.Frame(outer)
+            status_row.pack(fill="x", pady=(0, 8))
+            ttk.Label(status_row, textvariable=self.status_var).pack(side="left")
+            ttk.Label(status_row, text="   Session FP:").pack(side="left")
+            ttk.Label(status_row, textvariable=self.session_fp_var).pack(side="left")
+            ttk.Label(status_row, text="   Identity FP:").pack(side="left")
+            ttk.Label(status_row, textvariable=self.id_fp_var).pack(side="left")
+
+            ttk.Label(outer, text="Paste packet from the other laptop:").pack(anchor="w")
+            self.incoming = ScrolledText(outer, height=7, wrap="word")
             self.incoming.pack(fill="x", pady=(2, 6))
 
             incoming_buttons = ttk.Frame(outer)
             incoming_buttons.pack(fill="x", pady=(0, 10))
-            ttk.Button(incoming_buttons, text="Decrypt Incoming Message", command=self.decrypt_incoming).pack(side="left", padx=4)
-            ttk.Button(incoming_buttons, text="Clear Incoming", command=self.clear_incoming).pack(side="left", padx=4)
+            ttk.Button(incoming_buttons, text="Decrypt Pasted Packet", command=self.decrypt_incoming).pack(side="left", padx=4)
+            ttk.Button(incoming_buttons, text="Clear", command=self.clear_incoming).pack(side="left", padx=4)
 
-            ttk.Label(outer, text="Outgoing packet (copy and send to other laptop):").pack(anchor="w")
-            self.outgoing = ScrolledText(outer, height=8, wrap="word")
+            ttk.Label(outer, text="Packet to send (this is auto-copied by default):").pack(anchor="w")
+            self.outgoing = ScrolledText(outer, height=7, wrap="word")
             self.outgoing.pack(fill="x", pady=(2, 6))
 
             outgoing_buttons = ttk.Frame(outer)
             outgoing_buttons.pack(fill="x", pady=(0, 10))
-            ttk.Button(outgoing_buttons, text="Copy Outgoing", command=self.copy_outgoing).pack(side="left", padx=4)
-            ttk.Button(outgoing_buttons, text="Clear Outgoing", command=self.clear_outgoing).pack(side="left", padx=4)
+            ttk.Button(outgoing_buttons, text="Copy Packet Now", command=self.copy_outgoing).pack(side="left", padx=4)
+            ttk.Button(outgoing_buttons, text="Clear", command=self.clear_outgoing).pack(side="left", padx=4)
 
             msg_row = ttk.Frame(outer)
-            msg_row.pack(fill="x", pady=(0, 10))
-
+            msg_row.pack(fill="x", pady=(0, 8))
             ttk.Label(msg_row, text="Message:").pack(side="left")
             msg_entry = ttk.Entry(msg_row, textvariable=self.msg_var)
             msg_entry.pack(side="left", fill="x", expand=True, padx=(6, 6))
             msg_entry.bind("<Return>", lambda _e: self.send_message())
-            ttk.Button(msg_row, text="Encrypt + Create Outgoing Packet", command=self.send_message).pack(side="left")
+            ttk.Button(msg_row, text="Encrypt + Create Packet", command=self.send_message).pack(side="left")
 
-            ttk.Label(outer, text="Local message view:").pack(anchor="w")
-            self.log = ScrolledText(outer, height=15, wrap="word", state="disabled")
+            ttk.Label(outer, text="Conversation:").pack(anchor="w")
+            self.log = ScrolledText(outer, height=13, wrap="word", state="disabled")
             self.log.pack(fill="both", expand=True)
 
             ttk.Label(
                 outer,
                 text=(
-                    "No network is used. Manual copy/paste only. "
-                    "For best security, compare Session FP + Identity FP out-of-band."
+                    "Tip: Compare Session FP + Identity FP verbally before trusting the link. "
+                    "Packets never leave this app automatically."
                 ),
                 foreground="#555",
             ).pack(anchor="w", pady=(8, 0))
+
+        # ---------- animation helpers ----------
+
+        @staticmethod
+        def _hex_to_rgb(h: str) -> tuple[int, int, int]:
+            h = h.lstrip("#")
+            return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+        @staticmethod
+        def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
+            r, g, b = rgb
+            return f"#{r:02x}{g:02x}{b:02x}"
+
+        def _animate_banner(self, message: str, tone: str = "info") -> None:
+            tones = {
+                "info": "#1d4ed8",
+                "success": "#0f766e",
+                "error": "#b91c1c",
+            }
+            start = tones.get(tone, "#1d4ed8")
+            end = self._banner_default_bg
+
+            self.banner_var.set(message)
+            self.banner.configure(bg=start)
+
+            if self._banner_job:
+                try:
+                    self.root.after_cancel(self._banner_job)
+                except Exception:
+                    pass
+
+            sr, sg, sb = self._hex_to_rgb(start)
+            er, eg, eb = self._hex_to_rgb(end)
+            steps = 12
+
+            def step(i: int = 0) -> None:
+                t = i / steps
+                r = int(sr + (er - sr) * t)
+                g = int(sg + (eg - sg) * t)
+                b = int(sb + (eb - sb) * t)
+                self.banner.configure(bg=self._rgb_to_hex((r, g, b)))
+                if i < steps:
+                    self._banner_job = self.root.after(40, step, i + 1)
+
+            self._banner_job = self.root.after(160, step, 0)
+
+        # ---------- utility ----------
 
         def _append_log(self, line: str) -> None:
             self.log.configure(state="normal")
@@ -993,23 +1077,35 @@ if TK_AVAILABLE:
             self.log.see("end")
             self.log.configure(state="disabled")
 
-        def _set_outgoing(self, text: str) -> None:
+        def _copy_text(self, text: str) -> None:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+
+        def _set_outgoing(self, text: str, context: str = "Packet ready") -> None:
+            payload = text.strip()
             self.outgoing.delete("1.0", "end")
-            self.outgoing.insert("1.0", text.strip())
+            self.outgoing.insert("1.0", payload)
+
+            if payload and self.auto_copy_var.get():
+                self._copy_text(payload)
+                self._animate_banner(f"✅ {context}. Packet auto-copied.", "success")
+                self._append_log("System: Packet auto-copied to clipboard.")
+            else:
+                self._animate_banner(f"ℹ️ {context}. Copy and send it to your peer.", "info")
 
         def _get_incoming(self) -> str:
             return self.incoming.get("1.0", "end").strip()
 
         def _refresh_status(self) -> None:
             if self.state.established:
-                role = self.state.role or "linked"
-                self.status_var.set(f"Linked as {role}. Peer: {self.state.peer_name}")
-            elif self.state.role:
-                self.status_var.set(f"Role: {self.state.role} (link not complete)")
+                self.status_var.set(f"✅ Linked with {self.state.peer_name}. Ready to chat.")
+            elif self.state.role == "initiator":
+                self.status_var.set("⏳ Link started on this laptop (A). Waiting for response packet.")
+            elif self.state.role == "responder":
+                self.status_var.set("⏳ Link response created (B). Send it back to Laptop A.")
             else:
-                self.status_var.set("Not linked")
+                self.status_var.set("Not linked yet.")
 
-            self.mode_var.set(self.state.kdf_mode)
             self.session_fp_var.set(self.state.session_fingerprint)
             self.id_fp_var.set(self.state.identity_fingerprint)
 
@@ -1018,19 +1114,24 @@ if TK_AVAILABLE:
                 fn()
                 self._refresh_status()
             except Exception as exc:
+                self._animate_banner(f"❌ {exc}", "error")
                 messagebox.showerror("Error", str(exc))
+
+        # ---------- actions ----------
 
         def generate_psk(self) -> None:
             self.psk_var.set(random_psk_b64())
             self._append_log("System: Generated random PSK. Share it securely with peer.")
+            self._animate_banner("Generated PSK. Use the same value on both laptops before linking.", "info")
 
         def create_link_request(self) -> None:
             def action() -> None:
                 name = self.name_var.get().strip() or "Me"
                 psk = self.psk_var.get().strip()
                 packet = self.state.create_link_request(name, psk)
-                self._set_outgoing(packet)
-                self._append_log("System: Link request created. Copy outgoing packet to peer.")
+                self._set_outgoing(packet, "Step 1 complete")
+                self._append_log("System: Link request created. Send this packet to Laptop B.")
+                self._animate_banner("Step 1 done. Send packet to Laptop B, then wait for response.", "success")
 
             self._safe_run(action)
 
@@ -1042,15 +1143,12 @@ if TK_AVAILABLE:
                 name = self.name_var.get().strip() or "Me"
                 psk = self.psk_var.get().strip()
                 response = self.state.accept_link_request(incoming, name, psk)
-                self._set_outgoing(response)
+                self._set_outgoing(response, "Step 2 complete")
                 self._append_log(
                     f"System: Accepted link request from {self.state.peer_name}. "
-                    "Send outgoing response back to peer."
+                    "Send this response back to Laptop A."
                 )
-                self._append_log(
-                    f"System: Compare session FP: {self.state.session_fingerprint} / "
-                    f"identity FP: {self.state.identity_fingerprint}"
-                )
+                self._animate_banner("Step 2 done. Send response packet back to Laptop A.", "success")
 
             self._safe_run(action)
 
@@ -1063,9 +1161,10 @@ if TK_AVAILABLE:
                 self.state.complete_link_with_response(incoming, psk)
                 self._append_log(f"System: Link complete with {self.state.peer_name}.")
                 self._append_log(
-                    f"System: Compare session FP: {self.state.session_fingerprint} / "
-                    f"identity FP: {self.state.identity_fingerprint}"
+                    f"System: Verify fingerprints out-of-band — "
+                    f"Session: {self.state.session_fingerprint}, Identity: {self.state.identity_fingerprint}"
                 )
+                self._animate_banner("Step 3 done. Link complete — you can now send messages.", "success")
 
             self._safe_run(action)
 
@@ -1075,7 +1174,7 @@ if TK_AVAILABLE:
                 if not plaintext:
                     return
                 packet = self.state.encrypt_message(plaintext)
-                self._set_outgoing(packet)
+                self._set_outgoing(packet, "Encrypted message ready")
                 self._append_log(f"You: {plaintext}")
                 self.msg_var.set("")
 
@@ -1085,9 +1184,10 @@ if TK_AVAILABLE:
             def action() -> None:
                 incoming = self._get_incoming()
                 if not incoming:
-                    raise ValueError("Paste an encrypted message packet first")
+                    raise ValueError("Paste an incoming packet first")
                 plaintext = self.state.decrypt_message(incoming)
                 self._append_log(f"{self.state.peer_name}: {plaintext}")
+                self._animate_banner("Message decrypted successfully.", "success")
 
             self._safe_run(action)
 
@@ -1095,9 +1195,9 @@ if TK_AVAILABLE:
             text = self.outgoing.get("1.0", "end").strip()
             if not text:
                 return
-            self.root.clipboard_clear()
-            self.root.clipboard_append(text)
+            self._copy_text(text)
             self._append_log("System: Outgoing packet copied to clipboard.")
+            self._animate_banner("Packet copied to clipboard.", "info")
 
         def clear_incoming(self) -> None:
             self.incoming.delete("1.0", "end")

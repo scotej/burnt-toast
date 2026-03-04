@@ -37,27 +37,27 @@ python3 dh_double_ratchet_chat.py
 #### Laptop A
 1. Enter your name.
 2. (Optional) Set a PSK (extra security phrase/key).
-3. Click **Create Link Request (Initiator)**.
-4. Copy the outgoing packet and send it to Laptop B.
+3. Click **1) Start Link (Laptop A)**.
+4. Send the outgoing packet to Laptop B (it auto-copies by default).
 
 #### Laptop B
 1. Enter your name.
 2. Use the **same PSK** if you are using one.
-3. Paste A's packet into **Incoming**.
-4. Click **Accept Link Request + Respond**.
-5. Copy the outgoing packet and send it back to Laptop A.
+3. Paste A's packet into **Paste packet from the other laptop**.
+4. Click **2) Reply to Link (Laptop B)**.
+5. Send the outgoing response packet back to Laptop A.
 
 #### Laptop A
-1. Paste B's response into **Incoming**.
-2. Click **Complete Link from Response**.
+1. Paste B's response packet.
+2. Click **3) Finish Link (Laptop A)**.
 
 Now both sides are linked.
 
 ### Send messages
 1. Type a message.
-2. Click **Encrypt + Create Outgoing Packet**.
-3. Copy packet and send it to the other person.
-4. Other person pastes into **Incoming** and decrypts.
+2. Click **Encrypt + Create Packet**.
+3. Packet is auto-copied (if Auto-copy is enabled), then send it to the other person.
+4. Other person pastes and clicks **Decrypt Pasted Packet**.
 
 ### Safety checklist
 - Compare **Session FP** and **Identity FP** verbally or in person.
