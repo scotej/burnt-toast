@@ -13,14 +13,15 @@ If you just want it to work, follow this section.
 ### What you need
 - Two laptops
 - Python 3 on both
+- Git on both (to clone the repo)
 - Both people can copy/paste text between devices (Signal/WhatsApp/email/USB/etc.)
 
-### Install (both laptops)
-1. Open Terminal
-2. Go into this project folder
-3. Run:
+### Quick start (full start-to-finish setup)
+Do this on **both laptops**:
 
 ```bash
+git clone https://github.com/scottejin/burnt-toast.git
+cd burnt-toast
 python3 -m pip install -r dh_double_ratchet_chat_requirements.txt
 python3 dh_double_ratchet_chat.py
 ```
@@ -62,6 +63,16 @@ Now both sides are linked.
 - Compare **Session FP** and **Identity FP** verbally or in person.
 - If identity mismatch appears, stop and verify.
 - Keep your laptop secure (password, updates, disk encryption).
+
+### What is a PSK, and what does it do?
+- **PSK** means **Pre-Shared Key**.
+- It is a secret value that both people enter before linking.
+- If both sides use the same PSK, the app mixes it into the handshake (`x25519+psk` mode).
+- This adds an extra protection layer against future "store now, decrypt later" attacks.
+- If you do not set one, the app still works in normal `x25519` mode.
+
+Practical tip:
+- Use a random PSK (the app can generate one), share it securely, and do **not** reuse it forever.
 
 ---
 
